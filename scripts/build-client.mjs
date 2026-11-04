@@ -56,6 +56,10 @@ window.eaglercraftXOpts = (function () {
 })();
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%`;
 
+// Wraps window.WebSocket so the game can fall back to /game/http/* when a proxy refuses the
+// WebSocket upgrade. Injected with the launch options, before the client script runs.
+const TRANSPORT = await readFile(new URL("../lib/client-transport.js", import.meta.url), "utf8");
+
 // Any of these would mean the page can talk to a third party.
 const FORBIDDEN = ["live.eaglercraft.org", "relay.eaglercraft.net", "cdn.eaglercraft.net"];
 
@@ -79,7 +83,7 @@ function patch(html) {
 
   const optsBlock = /\/\/ %+ launch options %+[\s\S]*?\/\/ %{10,}/;
   if (!optsBlock.test(next)) throw new Error("could not find the launch options block");
-  next = next.replace(optsBlock, OPTS);
+  next = next.replace(optsBlock, `${OPTS}\n${TRANSPORT}`);
 
   next = next.replace("<title>EaglercraftX 1.8</title>", "<title>Education World — Loop Troop</title>");
   next = next.replace(
@@ -109,6 +113,7 @@ function check(html) {
   if (!html.includes(`joinServer: "${SERVER}"`)) problems.push("joinServer missing");
   if (!html.includes("analytics: false")) problems.push("analytics still enabled");
   if (!html.includes("relays: []")) problems.push("external relay list survived");
+  if (!html.includes("__loopTroopTransport")) problems.push("transport fallback missing");
   for (const host of FORBIDDEN) {
     const hits = html.split(host).length - 1;
     if (hits > 0) problems.push(`${host} still referenced ${hits}x`);

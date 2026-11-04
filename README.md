@@ -99,6 +99,14 @@ so a dead server fails the join immediately instead of hanging. It is deliberate
 documented rather than disguised — the school's admin approved running game traffic through this
 URL — and it only accepts unlocked browsers, so it is not an open proxy for anyone else.
 
+Some networks allow the site but refuse the WebSocket upgrade, which reaches the camper as
+"handshake timed out". For those, `/game/http/*` carries the same frames as ordinary HTTPS requests
+to this same origin. `lib/client-transport.js` (injected into the client at build time) keeps the
+WebSocket fast path and switches only if the upgrade does not open or the world answers nothing; the
+transport it ended up using is remembered in `localStorage` so a camper on a restricted network
+connects quickly next time. Both transports forward to the same upstream — the relay has no other
+destination.
+
 ### The client ships with the site
 
 `/learn` is not a wrapper around somebody else's page: the client is served from this deployment at

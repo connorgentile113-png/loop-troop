@@ -390,40 +390,25 @@
           }
         })();
 
-        // One-off reachability check: opens and closes a socket to the same place the game connects,
-        // so we can say whether this network is the reason instead of leaving a cryptic message.
-        const probeServer = () =>
-          new Promise((resolve) => {
-            let socket;
-            let finished = false;
-            const timer = setTimeout(() => finish({ ok: false, message: "No answer in 8 seconds." }), 8000);
-            function finish(result) {
-              if (finished) return;
-              finished = true;
-              clearTimeout(timer);
-              try {
-                socket.close();
-              } catch {
-                /* already gone */
-              }
-              resolve(result);
-            }
-            try {
-              socket = new WebSocket(address);
-            } catch {
-              finish({ ok: false, message: "This browser could not even start the test." });
-              return;
-            }
-            socket.onopen = () => finish({ ok: true, message: "Reachable from this browser." });
-            socket.onerror = () => finish({ ok: false, message: "Refused or blocked." });
-          });
+        // Checks the relay itself rather than any one transport, because the game can reach the
+        // world over WebSocket or over plain HTTPS when a proxy refuses the upgrade.
+        const probeServer = async () => {
+          try {
+            const res = await fetch("/game/http/ping", { headers: { Accept: "application/json" } });
+            if (res.status === 204 || res.ok) return { ok: true, message: "This site can reach the game." };
+            if (res.status === 403) return { ok: false, message: "The camp password expired — type it again." };
+            return { ok: false, message: `The relay answered ${res.status}.` };
+          } catch {
+            return { ok: false, message: "The relay could not be reached from this browser." };
+          }
+        };
 
         testButton.addEventListener("click", async () => {
           testResult.textContent = `Testing ${address}…`;
           const { ok, message } = await probeServer();
           testResult.textContent = ok
             ? `${message} If the game still says it timed out, the camp world is down — try again later.`
-            : `${message} The game runs through this site, so tell your counselor if this keeps failing.`;
+            : `${message} Tell your counselor if this keeps failing.`;
         });
 
         const showNetworkWarning = (shown) => {

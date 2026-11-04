@@ -1,6 +1,6 @@
 /**
  * The server for Loop Troop: static files, /api/* functions, the password gate in front of the
- * game client, and the /game WebSocket relay.
+ * game client, and the game relay (/game over WebSocket, /game/http/* over plain HTTPS).
  *
  * It runs locally (`npm start`) and in production on Render.
  */
@@ -8,18 +8,23 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { WebSocket, WebSocketServer } from "ws";
 import { hasUnlock } from "../lib/gate.js";
+import { createGameRelay } from "../lib/game-relay.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const port = Number(process.env.PORT || 4321);
 
 /**
- * Where /game forwards game traffic. This is the camp's Minecraft server, not ours.
- * The relay exists so a school network only has to allow this site; it is a plain byte pipe and
- * does not read, record or change anything that passes through it.
+ * Where the relay forwards game traffic. This is the camp's Minecraft server, not ours.
+ * Both transports forward to it unchanged; neither reads or records what passes through.
  */
 const GAME_UPSTREAM = process.env.GAME_UPSTREAM || "wss://looptroop.eagler.host";
+
+const relay = createGameRelay({
+  upstream: GAME_UPSTREAM,
+  isAllowed: hasUnlock,
+  log: (message) => console.log(`relay: ${message}`),
+});
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -35,6 +40,8 @@ const types = {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${port}`);
   const pathname = decodeURIComponent(url.pathname);
+
+  if (await relay.handleHttp(req, res, pathname)) return;
 
   if (pathname.startsWith("/api/")) {
     const route = pathname.slice(5).replace(/\/$/, "");
@@ -93,73 +100,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const relay = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-
-function bridge(client, upstream) {
-  const close = () => {
-    try {
-      client.close();
-    } catch {
-      /* already closed */
-    }
-    try {
-      upstream.close();
-    } catch {
-      /* already closed */
-    }
-  };
-  client.on("message", (data, isBinary) => {
-    if (upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
-  });
-  upstream.on("message", (data, isBinary) => {
-    if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
-  });
-  client.on("close", close);
-  upstream.on("close", close);
-  client.on("error", close);
-  upstream.on("error", close);
-  upstream.on("ping", () => client.ping());
-  client.on("ping", () => upstream.ping());
-}
-
-server.on("upgrade", (req, socket, head) => {
-  const { pathname } = new URL(req.url, `http://localhost:${port}`);
-  if (pathname !== "/game" && pathname !== "/game/") {
-    socket.destroy();
-    return;
-  }
-  if (!hasUnlock(req)) {
-    socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-
-  const protocols = (req.headers["sec-websocket-protocol"] || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-  // Dial the game server first: if it is down the camper gets a failed join straight away instead
-  // of a socket that sits open and times out.
-  const upstream = new WebSocket(GAME_UPSTREAM, protocols, { perMessageDeflate: false });
-  const gaveUp = () => {
-    try {
-      upstream.terminate();
-    } catch {
-      /* already gone */
-    }
-    socket.destroy();
-  };
-  socket.on("error", gaveUp);
-  upstream.on("error", gaveUp);
-
-  upstream.on("open", () => {
-    upstream.off("error", gaveUp);
-    relay.handleUpgrade(req, socket, head, (client) => bridge(client, upstream));
-  });
-});
+server.on("upgrade", relay.handleUpgrade);
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`Loop Troop is running at http://localhost:${port}`);
-  console.log(`game relay: /game -> ${GAME_UPSTREAM}`);
+  console.log(`game relay: /game + /game/http/* -> ${GAME_UPSTREAM}`);
 });

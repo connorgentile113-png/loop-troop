@@ -24,17 +24,28 @@ npm run dev      # http://localhost:4321
 npm test         # Node test runner: quest content + sandbox behaviour
 ```
 
-No dependencies: the site is static HTML/CSS/JS and the API is plain Node functions,
-so there is nothing to `npm install` and no build step.
-
-## Deploy to Vercel
+One dependency — `ws`, for the `/game` relay. Everything else is static HTML/CSS/JS and plain Node
+functions.
 
 ```bash
-npx vercel --prod
+npm install
+LEARN_PASSWORD='the camp password' npm start
 ```
 
-Vercel serves the files in the project root and turns `api/*.js` into Node serverless
-functions automatically. `vercel.json` sets a 10s function limit and basic security headers.
+## Deploy
+
+The live site is a Render free web service built from `github.com/connorgentile113-png/loop-troop`:
+
+```bash
+git push        # Render rebuilds main automatically
+```
+
+`dev/server.js` is the production server, not just a dev convenience: it serves the static files,
+routes `/api/*` to the functions in `api/`, gates `/mc/*` behind the camp password and relays
+`/game` to the game server.
+
+A Vercel copy still works for the quest app (`npx vercel --prod`), but it cannot host the gate or
+the relay — a function cannot stream a 33 MB file or hold a WebSocket. Render is the site.
 
 ## Layout
 
@@ -47,38 +58,53 @@ src/arcade-data.js  Bug Hunt questions
 src/fx.js           confetti + Web Audio chirps
 lib/quests.js       quest content and the checks (server only)
 lib/sandbox.js      vm runner
+lib/gate.js         camp password + unlock cookie
 api/quests.js       GET catalog
 api/run.js          POST run code (+ gentle rate limit)
-dev/server.js       local server that mirrors Vercel routing
+api/unlock.js       POST camp password
+dev/server.js       the production server: static files, API, password gate, /game relay
 tests/              node:test suite
 ```
 
 ## Education World (`/learn`)
 
-A separate page (not linked from the quest app) that walks a camper through joining a shared
-Eaglercraft world: pick a name (saved in this browser only), copy the server address, then open
-the client in a new tab. Nothing is loaded from the Eaglercraft host until that button is pressed,
-and the page has its own `noindex` tag.
+A separate page (not linked from the quest app) with one job: get a camper into a shared Eaglercraft
+world. Type the camp password, pick a name (kept in this browser only), then the client runs in an
+iframe on the same page. The page is `noindex`.
 
-The client is hosted by the Eaglercraft project and sends `X-Frame-Options: DENY`, so it cannot be
-embedded in an iframe and it cannot be pre-filled with a name or a server address. Campers type
-their name in the client and paste the address under Multiplayer → Direct Connect.
+### The camp password
 
-The server address is set in one place — the `wss://looptroop.eagler.host` text in `learn.html` — if
-it ever moves. Verified: that host completes a WebSocket handshake on 443 (plain HTTPS on it only
-redirects to the hosting provider's page, which is expected).
+The client will not start until the camper types the troop password, and the check is server-side:
 
-A relay on Vercel is not an option: Vercel Functions cannot hold a long-lived WebSocket, since the
-connection closes at the function's maximum duration, and they have no raw TCP egress. If a network
-blocks `eagler.host`, the fix is an allowlist on that network, or a relay on a host that supports
-persistent connections.
+- `POST /api/unlock` compares the password with `LEARN_PASSWORD` in constant time and, on a match,
+  sets an `HttpOnly` cookie holding an HMAC of it (12 hours, so one school day).
+- `dev/server.js` refuses `/mc/*` and refuses the `/game` WebSocket upgrade without that cookie.
+
+So the gate is not decorative: without the password the 33 MB client is a 403 and the relay hangs
+up. The password is never committed to this repo; set it in the environment and rotate it there.
+
+```bash
+LEARN_PASSWORD='...' npm start        # local
+# Render: Dashboard → loop-troop → Environment → LEARN_PASSWORD
+```
+
+### The relay
+
+`/game` on this host is a WebSocket relay to `wss://looptroop.eagler.host` (override with
+`GAME_UPSTREAM`). The client's `joinServer` points at `wss://loop-troop.onrender.com/game`, so a
+school network only has to allow this one site.
+
+It is a plain byte pipe: it does not read, log or modify game traffic, and it dials the world first
+so a dead server fails the join immediately instead of hanging. It is deliberately named and
+documented rather than disguised — the school's admin approved running game traffic through this
+URL — and it only accepts unlocked browsers, so it is not an open proxy for anyone else.
 
 ### The client ships with the site
 
 `/learn` is not a wrapper around somebody else's page: the client is served from this deployment at
 `/mc/eaglercraft`, and the page makes **no requests to any third party** (no CDN, no font host, no
 analytics). The launch options in that file prefill the camper's name from `?name=` and point the
-client at `wss://looptroop.eagler.host`, with the relay list emptied.
+client at this site's `/game` relay, with the vendor's relay list emptied.
 
 `mc/eaglercraft.html` is built, not hand-edited:
 

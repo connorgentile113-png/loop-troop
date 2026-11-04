@@ -53,11 +53,13 @@
       .card p { line-height: 1.6; margin: 0 0 16px; }
       .step { font-weight: 800; color: var(--violet); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; }
       label { display: block; font-weight: 800; margin-bottom: 8px; }
-      input[type="text"] {
+      input[type="text"], input[type="password"] {
         width: 100%; max-width: 340px; padding: 12px 14px; font: inherit; font-weight: 700;
         border: 2px solid var(--ink); border-radius: 12px; background: #fffdf7;
       }
-      input[type="text"]:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
+      input[type="text"]:focus-visible, input[type="password"]:focus-visible {
+        outline: 3px solid var(--violet); outline-offset: 2px;
+      }
       .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
       .btn {
         display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px;
@@ -132,8 +134,30 @@
         for: one canvas, one connection to the camp server.
       </p>
 
-      <section class="card" aria-labelledby="pick-name">
+      <section class="card hidden" id="gate-card" aria-labelledby="gate-heading">
         <span class="step">Step 1</span>
+        <h2 id="gate-heading">Camp password</h2>
+        <p>Your counselor gave the troop a password. Type it here to unlock Education World.</p>
+        <form id="gate-form" novalidate>
+          <label for="gate-password">Password</label>
+          <input
+            id="gate-password"
+            name="gate-password"
+            type="password"
+            autocomplete="current-password"
+            autocapitalize="off"
+            spellcheck="false"
+            aria-describedby="gate-note"
+          />
+          <div class="row">
+            <button class="btn primary" type="submit" id="gate-submit">Unlock →</button>
+            <span id="gate-note" class="muted" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="card hidden" id="name-card" aria-labelledby="pick-name">
+        <span class="step">Step 2</span>
         <h2 id="pick-name">Pick a camper name</h2>
         <p>Other players will see this name in the world. It stays in this browser — no account, no email.</p>
         <form id="name-form" novalidate>
@@ -156,7 +180,7 @@
       </section>
 
       <section class="card hidden" id="join-card" aria-labelledby="enter-world">
-        <span class="step">Step 2</span>
+        <span class="step">Step 3</span>
         <h2 id="enter-world">Enter the world</h2>
         <p id="join-copy">
           The world loads in this page. Nothing is downloaded from another website — the client ships
@@ -173,7 +197,7 @@
           appears, click <strong>Multiplayer</strong> if you are not dropped into the world already.
         </p>
         <div class="addr" style="margin-top: 18px">
-          <span id="server-address">wss://looptroop.eagler.host</span>
+          <span id="server-address">wss://loop-troop.onrender.com/game</span>
           <button class="btn" type="button" id="copy-address">Copy address</button>
           <button class="btn" type="button" id="test-connection">Test connection</button>
         </div>
@@ -181,12 +205,13 @@
         <ol style="margin-top: 16px">
           <li>Your saved name is filled in for you.</li>
           <li>Choose <strong>Multiplayer</strong> → <strong>Education World</strong>.</li>
-          <li>If the list is empty, paste <code>wss://looptroop.eagler.host</code> under <strong>Direct Connect</strong>.</li>
+          <li>If the list is empty, paste <code>wss://loop-troop.onrender.com/game</code> under
+            <strong>Direct Connect</strong>.</li>
         </ol>
         <p class="muted" style="margin: 12px 0 0">
-          Use the whole address, including <code>wss://</code>. A message like <em>handshake timed out</em>
-          usually means the network is blocking the address rather than the world being gone; press
-          <strong>Test connection</strong> to tell which, and <strong>Enter</strong> again to retry.
+          Use the whole address, including <code>wss://</code>. That is this site, which forwards you to
+          the camp world. If the game says <em>handshake timed out</em>, press
+          <strong>Test connection</strong> to see whether this site or the world is the problem.
         </p>
       </section>
 
@@ -210,7 +235,7 @@
           on screen — if nothing moves, click the game once to hand it your keyboard.
         </p>
         <div class="note warn hidden" id="net-warning" role="status" aria-live="polite" style="margin-top: 12px">
-          <strong>This network is blocking the game server.</strong>
+          <strong>The game connection is not open.</strong>
           <span id="net-warning-text"></span>
         </div>
       </section>
@@ -261,6 +286,12 @@
         const fillButton = document.getElementById("fill");
         const testButton = document.getElementById("test-connection");
         const testResult = document.getElementById("test-result");
+        const gateCard = document.getElementById("gate-card");
+        const gateForm = document.getElementById("gate-form");
+        const gateInput = document.getElementById("gate-password");
+        const gateNote = document.getElementById("gate-note");
+        const gateSubmit = document.getElementById("gate-submit");
+        const nameCard = document.getElementById("name-card");
 
         let toastTimer;
         const say = (message) => {
@@ -391,8 +422,8 @@
           testResult.textContent = `Testing ${address}…`;
           const { ok, message } = await probeServer();
           testResult.textContent = ok
-            ? `${message} If the game still times out, the world itself is down.`
-            : `${message} Ask a grown-up to allow ${serverHost} on port 443.`;
+            ? `${message} If the game still says it timed out, the camp world is down — try again later.`
+            : `${message} The game runs through this site, so tell your counselor if this keeps failing.`;
         });
 
         const showNetworkWarning = (shown) => {
@@ -400,8 +431,8 @@
           warning.classList.toggle("hidden", !shown);
           if (shown) {
             document.getElementById("net-warning-text").textContent =
-              `This page reaches Loop Troop fine, but not ${serverHost} on port 443, so the world cannot load here. ` +
-              "Ask a grown-up to allow that address and port in the network filter, then press Enter again.";
+              `The page loaded, but the game connection to ${serverHost} did not open. ` +
+              "The free server sleeps when nobody is playing, so give it a minute and press Enter again.";
           }
         };
 
@@ -416,6 +447,72 @@
           savedNote.textContent = `Saved as ${saved}`;
           showJoin(saved);
         }
+
+        // The password is checked by the server, which hands back an HttpOnly cookie. The 33 MB
+        // client and the game relay both refuse to open without it, so the gate does not depend on
+        // this page being well behaved.
+        const showPassword = (note) => {
+          nameCard.classList.add("hidden");
+          gateCard.classList.remove("hidden");
+          if (note) gateNote.textContent = note;
+          gateInput.focus();
+        };
+
+        const showName = () => {
+          gateCard.classList.add("hidden");
+          nameCard.classList.remove("hidden");
+          input.focus();
+        };
+
+        gateForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const password = gateInput.value;
+          if (!password) {
+            gateNote.textContent = "Type the password from your counselor.";
+            gateInput.focus();
+            return;
+          }
+          gateSubmit.disabled = true;
+          gateNote.textContent = "Checking…";
+          try {
+            const res = await fetch("/api/unlock", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password }),
+            });
+            if (!res.ok) {
+              gateNote.textContent = "That password is not right. Try again.";
+              gateInput.select();
+              return;
+            }
+            gateInput.value = "";
+            gateNote.textContent = "";
+            showName();
+            say("Unlocked");
+          } catch {
+            gateNote.textContent = "Could not reach the server. Try again.";
+          } finally {
+            gateSubmit.disabled = false;
+          }
+        });
+
+        fetch("/api/unlock", { headers: { Accept: "application/json" } })
+          .then((res) => res.json())
+          .then((state) => {
+            if (!state.configured) {
+              showPassword("No password is set on this server yet — ask your counselor.");
+              return;
+            }
+            if (state.locked) {
+              showPassword("");
+              return;
+            }
+            showName();
+          })
+          .catch(() => {
+            // API unreachable: the client itself still refuses to load without the cookie.
+            showName();
+          });
 
         form.addEventListener("submit", (event) => {
           event.preventDefault();

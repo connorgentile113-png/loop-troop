@@ -26,7 +26,8 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const OUT = join(ROOT, "mc", "eaglercraft.html");
 const ZIP_URL = "https://cdn.eaglercraft.net/objects/dl/1.8.8/eaglercraft1-8-62da5f39.zip";
 const TMP_ZIP = join(process.env.TMPDIR || "/tmp", "eaglercraft1-8.zip");
-const SERVER = "wss://looptroop.eagler.host";
+// The game connection goes to our own host; /game on that host relays it to the Minecraft server.
+const SERVER = "wss://loop-troop.onrender.com/game";
 
 /** Injected into <head>, before the client script, so the client boots with our world. */
 const OPTS = `// %%%%%%%%% launch options %%%%%%%%%%%%%
@@ -35,7 +36,8 @@ window.eaglercraftXOpts = (function () {
 	var opts = {
 		container: "game_frame",
 		worldsDB: "worlds",
-		// No relays: the only connection this page makes is to our own server.
+		// No third-party relays: the only connection this page makes is to our own server,
+		// which forwards game traffic to the camp world.
 		relays: [],
 		servers: [{ addr: "${SERVER}", name: "Education World", primary: true }],
 		joinServer: "${SERVER}",
@@ -93,8 +95,8 @@ function patch(html) {
 
   // The bundle still carries the vendor's default relays (used for LAN/shared worlds). Point
   // them at our own server so no code path can reach a third party even if a camper explores.
-  next = next.replaceAll("wss://relay.eaglercraft.net/", `${SERVER}/`);
-  next = next.replaceAll("wss://relay.deev.is/", `${SERVER}/`);
+  next = next.replaceAll("wss://relay.eaglercraft.net/", `${SERVER}`);
+  next = next.replaceAll("wss://relay.deev.is/", `${SERVER}`);
 
   return next;
 }
@@ -122,4 +124,4 @@ await mkdir(join(ROOT, "mc"), { recursive: true });
 await writeFile(OUT, built);
 const { size } = await stat(OUT);
 console.log(`Wrote mc/eaglercraft.html (${(size / 1048576).toFixed(1)} MB)`);
-console.log("No third-party hosts referenced; server is", SERVER);
+console.log("No third-party hosts referenced; game connection is", SERVER);

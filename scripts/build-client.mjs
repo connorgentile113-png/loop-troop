@@ -27,7 +27,7 @@ const OUT = join(ROOT, "mc", "eaglercraft.html");
 const ZIP_URL = "https://cdn.eaglercraft.net/objects/dl/1.8.8/eaglercraft1-8-62da5f39.zip";
 const TMP_ZIP = join(process.env.TMPDIR || "/tmp", "eaglercraft1-8.zip");
 // The game connection goes to our own host; /game on that host relays it to the Minecraft server.
-const SERVER = "wss://loop-troop.onrender.com/game";
+const SERVER = "wss://riverdaleacademy.devs.surf/game";
 
 /** Injected into <head>, before the client script, so the client boots with our world. */
 const OPTS = `// %%%%%%%%% launch options %%%%%%%%%%%%%

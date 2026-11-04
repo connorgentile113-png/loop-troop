@@ -91,7 +91,7 @@ LEARN_PASSWORD='...' npm start        # local
 ### The relay
 
 `/game` on this host is a WebSocket relay to `wss://looptroop.eagler.host` (override with
-`GAME_UPSTREAM`). The client's `joinServer` points at `wss://loop-troop.onrender.com/game`, so a
+`GAME_UPSTREAM`). The client's `joinServer` points at `wss://riverdaleacademy.devs.surf/game`, so a
 school network only has to allow this one site.
 
 It is a plain byte pipe: it does not read, log or modify game traffic, and it dials the world first

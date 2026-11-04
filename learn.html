@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Education World — Loop Troop</title>
+    <meta name="robots" content="noindex" />
+    <meta
+      name="description"
+      content="Education World: a shared Minecraft-style sandbox for Loop Troop campers, hosted on this site."
+    />
+    <meta name="theme-color" content="#1c1440" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- No font host, no CDN: this page loads nothing from another website. -->
+    <style>
+      :root {
+        --ink: #1c1440;
+        --violet: #7c5cff;
+        --lime: #c3f76b;
+        --paper: #fffdf7;
+        --muted: #5c5470;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(1200px 500px at 15% -10%, #e9e1ff 0%, transparent 60%),
+          radial-gradient(900px 400px at 95% 0%, #e8ffc9 0%, transparent 55%),
+          var(--paper);
+        min-height: 100vh;
+      }
+      a { color: var(--violet); }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 72px; }
+      .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .brand { font-weight: 800; font-size: 1.35rem; text-decoration: none; color: var(--ink); }
+      .brand span { color: var(--violet); }
+      .back { font-weight: 700; text-decoration: none; }
+      .back:hover, .brand:hover { text-decoration: underline; }
+      .tag {
+        display: inline-block; margin: 26px 0 10px; padding: 6px 12px; border-radius: 999px;
+        background: #efe9ff; color: #4b2fd6; font-weight: 800; font-size: 0.78rem;
+        letter-spacing: 0.06em; text-transform: uppercase;
+      }
+      h1 { font-weight: 800; font-size: clamp(2.1rem, 6vw, 3.2rem); line-height: 1.05; margin: 0 0 12px; }
+      .lede { font-size: 1.08rem; line-height: 1.6; color: var(--muted); max-width: 62ch; margin: 0 0 26px; }
+      .card {
+        background: #fff; border: 2px solid var(--ink); border-radius: 18px;
+        box-shadow: 5px 5px 0 var(--ink); padding: 22px; margin-bottom: 22px;
+      }
+      .card h2 { margin: 0 0 8px; font-size: 1.3rem; }
+      .card p { line-height: 1.6; margin: 0 0 16px; }
+      .step { font-weight: 800; color: var(--violet); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; }
+      label { display: block; font-weight: 800; margin-bottom: 8px; }
+      input[type="text"] {
+        width: 100%; max-width: 340px; padding: 12px 14px; font: inherit; font-weight: 700;
+        border: 2px solid var(--ink); border-radius: 12px; background: #fffdf7;
+      }
+      input[type="text"]:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+      .btn {
+        display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px;
+        font: inherit; font-weight: 800; text-decoration: none; cursor: pointer;
+        border: 2px solid var(--ink); border-radius: 12px; background: #fff; color: var(--ink);
+        box-shadow: 3px 3px 0 var(--ink);
+      }
+      .btn:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--ink); }
+      .btn.primary { background: var(--violet); color: #fff; }
+      .btn.lime { background: var(--lime); }
+      .addr {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        font-family: ui-monospace, "JetBrains Mono", monospace; font-weight: 600;
+        background: #1c1440; color: var(--lime); padding: 12px 14px; border-radius: 12px;
+        overflow-wrap: anywhere;
+      }
+      .addr .btn { background: var(--lime); color: var(--ink); box-shadow: none; padding: 8px 14px; font-size: 0.86rem; }
+      ol { margin: 0 0 4px; padding-left: 1.25rem; line-height: 1.75; }
+      .muted { color: var(--muted); font-size: 0.94rem; }
+      .note {
+        border-left: 4px solid var(--violet); background: #f6f2ff; border-radius: 0 12px 12px 0;
+        padding: 14px 16px; font-size: 0.94rem; line-height: 1.6;
+      }
+      .note strong { display: block; margin-bottom: 4px; }
+      .note.warn { border-left-color: #d0453b; background: #fff2f0; }
+      .hidden { display: none; }
+      .toast {
+        position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+        background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px;
+        font-weight: 700; opacity: 0; transition: opacity 0.2s ease; pointer-events: none;
+      }
+      .toast.show { opacity: 1; }
+      .frame {
+        position: relative; border: 2px solid var(--ink); border-radius: 14px;
+        background: #000; overflow: hidden; height: min(74vh, 760px);
+      }
+      .frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+      .frame iframe:focus { outline: none; }
+      /* "Fill the tab" is pure CSS: the frame is pinned over the whole viewport, no
+         Fullscreen API, no browser chrome changes, and Escape or the button restores it. */
+      .frame.theater {
+        position: fixed; inset: 0; width: 100vw; height: 100vh; max-height: none;
+        border: 0; border-radius: 0; z-index: 60;
+      }
+      body.theater { overflow: hidden; }
+      .frame-btn {
+        position: absolute; top: 10px; right: 10px; z-index: 3;
+        padding: 8px 14px; font-size: 0.86rem; background: var(--paper);
+      }
+      .frame-btn:hover { transform: none; }
+      kbd {
+        display: inline-block; padding: 1px 6px; margin: 0 1px; border: 1px solid #b9b2cc;
+        border-radius: 6px; background: #fff; font: inherit; font-size: 0.86em; font-weight: 800;
+      }
+      .loading { color: #fff; padding: 26px; font-weight: 700; line-height: 1.6; }
+      @media (prefers-reduced-motion: reduce) { .btn { transition: none; } .btn:hover { transform: none; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="bar">
+        <a class="brand" href="/">Loop <span>Troop</span> 🌀</a>
+        <a class="back" href="/#/quests">← Back to quests</a>
+      </div>
+
+      <span class="tag">Shared sandbox</span>
+      <h1>Education World</h1>
+      <p class="lede">
+        A Minecraft-style world you can walk around right here in this page. It runs on
+        <strong>Eaglercraft</strong> — an open-source project that puts a Java Minecraft client on top
+        of the same JavaScript your quests use. There is nothing to install and nothing to sign up
+        for: one canvas, one connection to the camp server.
+      </p>
+
+      <section class="card" aria-labelledby="pick-name">
+        <span class="step">Step 1</span>
+        <h2 id="pick-name">Pick a camper name</h2>
+        <p>Other players will see this name in the world. It stays in this browser — no account, no email.</p>
+        <form id="name-form" novalidate>
+          <label for="camper-name">Your name</label>
+          <input
+            id="camper-name"
+            name="camper-name"
+            type="text"
+            maxlength="16"
+            autocomplete="nickname"
+            placeholder="e.g. PixelPilot"
+            aria-describedby="name-help"
+          />
+          <p id="name-help" class="muted" style="margin: 8px 0 0">3–16 characters, letters and numbers.</p>
+          <div class="row">
+            <button class="btn primary" type="submit">Save my name →</button>
+            <span id="saved-note" class="muted" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="card hidden" id="join-card" aria-labelledby="enter-world">
+        <span class="step">Step 2</span>
+        <h2 id="enter-world">Enter the world</h2>
+        <p id="join-copy">
+          The world loads in this page. Nothing is downloaded from another website — the client ships
+          with Loop Troop.
+        </p>
+        <div class="row">
+          <button class="btn primary" type="button" id="launch">▶ Enter Education World</button>
+          <a class="btn lime hidden" id="expand" href="#" target="_blank" rel="noopener noreferrer">
+            Open inside its own tab
+          </a>
+        </div>
+        <p class="muted" style="margin: 12px 0 0">
+          First load takes a minute: the client is about 33 MB and comes from this site. After the menu
+          appears, click <strong>Multiplayer</strong> if you are not dropped into the world already.
+        </p>
+        <div class="addr" style="margin-top: 18px">
+          <span id="server-address">wss://looptroop.eagler.host</span>
+          <button class="btn" type="button" id="copy-address">Copy address</button>
+          <button class="btn" type="button" id="test-connection">Test connection</button>
+        </div>
+        <p class="muted" id="test-result" role="status" aria-live="polite" style="margin: 8px 0 0"></p>
+        <ol style="margin-top: 16px">
+          <li>Your saved name is filled in for you.</li>
+          <li>Choose <strong>Multiplayer</strong> → <strong>Education World</strong>.</li>
+          <li>If the list is empty, paste <code>wss://looptroop.eagler.host</code> under <strong>Direct Connect</strong>.</li>
+        </ol>
+        <p class="muted" style="margin: 12px 0 0">
+          Use the whole address, including <code>wss://</code>. A message like <em>handshake timed out</em>
+          usually means the network is blocking the address rather than the world being gone; press
+          <strong>Test connection</strong> to tell which, and <strong>Enter</strong> again to retry.
+        </p>
+      </section>
+
+      <section class="card hidden" id="game-card">
+        <div class="frame" id="frame">
+          <button class="btn frame-btn" type="button" id="fill" aria-pressed="false">⛶ Fill the tab</button>
+          <div class="loading" id="game-loading">
+            Loading Education World… <span id="load-seconds">0</span>s. This is a big download the first
+            time; later visits are instant.
+          </div>
+          <iframe
+            id="game"
+            title="Education World game client"
+            tabindex="0"
+            allow="fullscreen; pointer-lock; autoplay; gamepad"
+            hidden
+          ></iframe>
+        </div>
+        <p class="muted" id="focus-hint" style="margin: 10px 0 0">
+          Walk with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>. Keys belong to the game while it is
+          on screen — if nothing moves, click the game once to hand it your keyboard.
+        </p>
+        <div class="note warn hidden" id="net-warning" role="status" aria-live="polite" style="margin-top: 12px">
+          <strong>This network is blocking the game server.</strong>
+          <span id="net-warning-text"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Before you build</h2>
+        <div class="note">
+          <strong>A grown-up should be in the room.</strong>
+          This is a public, unmoderated server: anyone with the address can join, build, and chat.
+          There is no profanity filter and no chat log. Treat it like a shared school playground,
+          not a private space — never share your real name, school, address, or photos.
+        </div>
+        <p class="muted" style="margin: 16px 0 0">
+          Eaglercraft is a third-party open-source project and is not affiliated with Loop Troop or
+          Mojang. The client is served by this site; the world itself is saved by the camp server, not
+          by this page. Loop Troop stores only your camper name, in this browser.
+        </p>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <noscript>
+      <p style="text-align: center; font-weight: 700">
+        Education World needs JavaScript. Turn it on and reload this page.
+      </p>
+    </noscript>
+
+    <script>
+      (() => {
+        const KEY = "loop-troop-edu-name";
+        const CLIENT = "/mc/eaglercraft";
+        const form = document.getElementById("name-form");
+        const input = document.getElementById("camper-name");
+        const joinCard = document.getElementById("join-card");
+        const gameCard = document.getElementById("game-card");
+        const frame = document.getElementById("game");
+        const loading = document.getElementById("game-loading");
+        const seconds = document.getElementById("load-seconds");
+        const launchButton = document.getElementById("launch");
+        const expand = document.getElementById("expand");
+        const joinCopy = document.getElementById("join-copy");
+        const savedNote = document.getElementById("saved-note");
+        const copyButton = document.getElementById("copy-address");
+        const address = document.getElementById("server-address").textContent.trim();
+        const toast = document.getElementById("toast");
+        const frameBox = document.getElementById("frame");
+        const fillButton = document.getElementById("fill");
+        const testButton = document.getElementById("test-connection");
+        const testResult = document.getElementById("test-result");
+
+        let toastTimer;
+        const say = (message) => {
+          toast.textContent = message;
+          toast.classList.add("show");
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+        };
+
+        const clean = (value) => value.replace(/[^\w .-]/g, "").trim().slice(0, 16);
+        const readName = () => {
+          try {
+            return localStorage.getItem(KEY) || "";
+          } catch {
+            return "";
+          }
+        };
+        const writeName = (value) => {
+          try {
+            localStorage.setItem(KEY, value);
+          } catch {
+            /* private mode: the name just won't stick */
+          }
+        };
+        const clientUrl = (name) => `${CLIENT}?name=${encodeURIComponent(name)}`;
+
+        const playing = () => !frame.hidden && !gameCard.classList.contains("hidden");
+
+        // Same origin, so we can hand the game keyboard focus ourselves.
+        const focusGame = () => {
+          try {
+            frame.focus();
+            frame.contentWindow.focus();
+          } catch {
+            /* if this ever became cross-origin, clicking the game still focuses it */
+          }
+        };
+
+        const setFill = (on) => {
+          frameBox.classList.toggle("theater", on);
+          document.body.classList.toggle("theater", on);
+          fillButton.textContent = on ? "⤡ Exit fill" : "⛶ Fill the tab";
+          fillButton.setAttribute("aria-pressed", String(on));
+          if (on) focusGame();
+        };
+
+        fillButton.addEventListener("click", () => setFill(!frameBox.classList.contains("theater")));
+
+        // Keys that would otherwise scroll this page instead of moving the player.
+        const SCROLL_KEYS = new Set([
+          " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End",
+        ]);
+
+        // Safety net: if the page (not the game) holds the keyboard, hand each key to the game
+        // and stop the page from scrolling under it.
+        const forward = (type) => (event) => {
+          if (!playing()) return;
+          const target = event.target;
+          if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+          if (event.ctrlKey || event.metaKey || event.altKey) return;
+          if (SCROLL_KEYS.has(event.key)) event.preventDefault();
+          let doc;
+          try {
+            doc = frame.contentDocument;
+          } catch {
+            return;
+          }
+          if (!doc) return;
+          const forwarded = new KeyboardEvent(type, {
+            key: event.key,
+            code: event.code,
+            location: event.location,
+            repeat: event.repeat,
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+          });
+          // The client is old Minecraft code and reads the legacy numeric fields.
+          for (const legacy of ["keyCode", "which", "charCode"]) {
+            Object.defineProperty(forwarded, legacy, { get: () => event[legacy] });
+          }
+          (doc.body || doc).dispatchEvent(forwarded);
+        };
+        window.addEventListener("keydown", forward("keydown"));
+        window.addEventListener("keyup", forward("keyup"));
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && frameBox.classList.contains("theater")) setFill(false);
+        });
+
+        const serverHost = (() => {
+          try {
+            return new URL(address).host;
+          } catch {
+            return address;
+          }
+        })();
+
+        // One-off reachability check: opens and closes a socket to the same place the game connects,
+        // so we can say whether this network is the reason instead of leaving a cryptic message.
+        const probeServer = () =>
+          new Promise((resolve) => {
+            let socket;
+            let finished = false;
+            const timer = setTimeout(() => finish({ ok: false, message: "No answer in 8 seconds." }), 8000);
+            function finish(result) {
+              if (finished) return;
+              finished = true;
+              clearTimeout(timer);
+              try {
+                socket.close();
+              } catch {
+                /* already gone */
+              }
+              resolve(result);
+            }
+            try {
+              socket = new WebSocket(address);
+            } catch {
+              finish({ ok: false, message: "This browser could not even start the test." });
+              return;
+            }
+            socket.onopen = () => finish({ ok: true, message: "Reachable from this browser." });
+            socket.onerror = () => finish({ ok: false, message: "Refused or blocked." });
+          });
+
+        testButton.addEventListener("click", async () => {
+          testResult.textContent = `Testing ${address}…`;
+          const { ok, message } = await probeServer();
+          testResult.textContent = ok
+            ? `${message} If the game still times out, the world itself is down.`
+            : `${message} Ask a grown-up to allow ${serverHost} on port 443.`;
+        });
+
+        const showNetworkWarning = (shown) => {
+          const warning = document.getElementById("net-warning");
+          warning.classList.toggle("hidden", !shown);
+          if (shown) {
+            document.getElementById("net-warning-text").textContent =
+              `This page reaches Loop Troop fine, but not ${serverHost} on port 443, so the world cannot load here. ` +
+              "Ask a grown-up to allow that address and port in the network filter, then press Enter again.";
+          }
+        };
+
+        const showJoin = (name) => {
+          joinCard.classList.remove("hidden");
+          joinCopy.textContent = `Ready, ${name}. The world loads in this page, with your name already filled in.`;
+        };
+
+        const saved = readName();
+        if (saved) {
+          input.value = saved;
+          savedNote.textContent = `Saved as ${saved}`;
+          showJoin(saved);
+        }
+
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const name = clean(input.value);
+          if (name.length < 3) {
+            input.focus();
+            savedNote.textContent = "Pick at least 3 characters.";
+            return;
+          }
+          input.value = name;
+          writeName(name);
+          savedNote.textContent = `Saved as ${name}`;
+          showJoin(name);
+          joinCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          say(`Saved as ${name}`);
+        });
+
+        let timer;
+        launchButton.addEventListener("click", () => {
+          const name = readName();
+          if (name.length < 3) {
+            say("Pick a name first");
+            input.focus();
+            return;
+          }
+          const url = clientUrl(name);
+          gameCard.classList.remove("hidden");
+          launchButton.disabled = true;
+          launchButton.textContent = "Loading…";
+          expand.href = url;
+          expand.classList.remove("hidden");
+          let started = 0;
+          timer = setInterval(() => {
+            started += 1;
+            seconds.textContent = String(started);
+          }, 1000);
+          frame.addEventListener(
+            "load",
+            () => {
+              clearInterval(timer);
+              loading.hidden = true;
+              frame.hidden = false;
+              launchButton.disabled = false;
+              launchButton.textContent = "▶ Enter Education World";
+              focusGame();
+            },
+            { once: true },
+          );
+          frame.src = url;
+          gameCard.scrollIntoView({ behavior: "smooth", block: "start" });
+          // Tell the camper straight away if the network, not the game, is the problem.
+          probeServer().then(({ ok }) => showNetworkWarning(!ok));
+        });
+
+        copyButton.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(address);
+            say("Server address copied");
+          } catch {
+            say(address);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

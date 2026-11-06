@@ -192,3 +192,44 @@ test("the shipped game embeds exactly the current transport before its bundle", 
   assert.ok(html.indexOf(source.trim()) < html.indexOf("window.eaglercraftXClientScriptElement"));
   assert.match(html.slice(0, html.indexOf(source.trim())), /location\.host \+ "\/game"/);
 });
+
+
+test("game-style handleEvent objects can send the handshake and receive its response", async () => {
+  let sends = 0;
+  let resolveRecv;
+  const { socket } = client("http://camp.test", "http", async (url, opts) => {
+    if (url.endsWith("/open")) return { ok: true, json: async () => ({ id: "session" }) };
+    if (url.endsWith("/send")) { sends++; return { ok: true }; }
+    if (url.endsWith("/close")) return { ok: true };
+    return new Promise((resolve, reject) => {
+      resolveRecv = resolve;
+      opts.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    });
+  });
+  let opens = 0;
+  const listener = { handleEvent(e) {
+    assert.equal(this, listener, "object listeners retain their receiver");
+    assert.equal(e.target, socket);
+    opens++;
+    socket.send(new Uint8Array([1, 3, 7]));
+  } };
+  socket.addEventListener("open", listener);
+  socket.addEventListener("open", listener);
+  socket.addEventListener("open", null);
+  await event(socket, "open");
+  await new Promise(resolve => setTimeout(resolve, 15));
+  assert.equal(opens, 1);
+  assert.equal(sends, 1, "the real game handshake leaves the browser");
+  const received = new Promise(resolve => socket.addEventListener("message", {
+    handleEvent(e) { resolve(e.data); },
+  }));
+  const frame = new Uint8Array([0, 0, 0, 3, 2, 4, 8]);
+  resolveRecv({ ok: true, status: 200, arrayBuffer: async () => frame.buffer });
+  assert.deepEqual([...new Uint8Array(await received)], [2, 4, 8]);
+  let closes = 0;
+  const removed = { handleEvent() { closes++; } };
+  socket.addEventListener("close", removed);
+  socket.removeEventListener("close", removed);
+  socket.close();
+  assert.equal(closes, 0);
+});

@@ -197,7 +197,7 @@
           appears, click <strong>Multiplayer</strong> if you are not dropped into the world already.
         </p>
         <div class="addr" style="margin-top: 18px">
-          <span id="server-address">wss://riverdaleacademy.devs.surf/game</span>
+          <span id="server-address" data-server-address>/game</span>
           <button class="btn" type="button" id="copy-address">Copy address</button>
           <button class="btn" type="button" id="test-connection">Test connection</button>
         </div>
@@ -205,7 +205,7 @@
         <ol style="margin-top: 16px">
           <li>Your saved name is filled in for you.</li>
           <li>Choose <strong>Multiplayer</strong> → <strong>Education World</strong>.</li>
-          <li>If the list is empty, paste <code>wss://riverdaleacademy.devs.surf/game</code> under
+          <li>If the list is empty, paste <code data-server-address>/game</code> under
             <strong>Direct Connect</strong>.</li>
         </ol>
         <p class="muted" style="margin: 12px 0 0">
@@ -280,7 +280,10 @@
         const joinCopy = document.getElementById("join-copy");
         const savedNote = document.getElementById("saved-note");
         const copyButton = document.getElementById("copy-address");
-        const address = document.getElementById("server-address").textContent.trim();
+        const address = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/game";
+        document.querySelectorAll("[data-server-address]").forEach((element) => {
+          element.textContent = address;
+        });
         const toast = document.getElementById("toast");
         const frameBox = document.getElementById("frame");
         const fillButton = document.getElementById("fill");

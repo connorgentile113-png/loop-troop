@@ -112,7 +112,10 @@ window.eaglercraftXOpts = (function () {
     var listeners = socket._listeners[type] || [];
     for (var i = 0; i < listeners.length; i++) {
       try {
-        listeners[i].call(socket, event);
+        if (typeof listeners[i] === "function") listeners[i].call(socket, event);
+        else if (listeners[i] && typeof listeners[i].handleEvent === "function") {
+          listeners[i].handleEvent(event);
+        }
       } catch (error) {
         setTimeout(function () {
           throw error;
@@ -431,8 +434,9 @@ window.eaglercraftXOpts = (function () {
   }
 
   Socket.prototype.addEventListener = function (type, listener) {
+    if (!listener) return;
     if (!this._listeners[type]) this._listeners[type] = [];
-    this._listeners[type].push(listener);
+    if (this._listeners[type].indexOf(listener) < 0) this._listeners[type].push(listener);
   };
 
   Socket.prototype.removeEventListener = function (type, listener) {

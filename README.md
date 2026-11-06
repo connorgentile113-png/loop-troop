@@ -105,7 +105,8 @@ to this same origin. `lib/client-transport.js` (injected into the client at buil
 WebSocket fast path and switches only if the upgrade does not open or the world answers nothing; the
 transport it ended up using is remembered in `localStorage` so a camper on a restricted network
 connects quickly next time. Both transports forward to the same upstream — the relay has no other
-destination. Frame types and ordering are preserved across the switch; HTTPS requests have bounded
+destination. The wrapper supports both function listeners and `handleEvent` listener objects (used
+by the actual game client), including on the HTTPS path. Frame types and ordering are preserved across the switch; HTTPS requests have bounded
 timeouts. **Test connection** opens and closes an actual upstream connection, so a reachable site
 is no longer mistaken for a reachable camp world.
 

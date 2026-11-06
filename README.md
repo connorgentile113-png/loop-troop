@@ -91,7 +91,7 @@ LEARN_PASSWORD='...' npm start        # local
 ### The relay
 
 `/game` on this host is a WebSocket relay to `wss://looptroop.eagler.host` (override with
-`GAME_UPSTREAM`). The client's `joinServer` points at `wss://riverdaleacademy.devs.surf/game`, so a
+`GAME_UPSTREAM`). The client's `joinServer` points at `/game` on the page's own host, so a
 school network only has to allow this one site.
 
 It is a plain byte pipe: it does not read, log or modify game traffic, and it dials the world first
@@ -105,7 +105,9 @@ to this same origin. `lib/client-transport.js` (injected into the client at buil
 WebSocket fast path and switches only if the upgrade does not open or the world answers nothing; the
 transport it ended up using is remembered in `localStorage` so a camper on a restricted network
 connects quickly next time. Both transports forward to the same upstream — the relay has no other
-destination.
+destination. Frame types and ordering are preserved across the switch; HTTPS requests have bounded
+timeouts. **Test connection** opens and closes an actual upstream connection, so a reachable site
+is no longer mistaken for a reachable camp world.
 
 ### The client ships with the site
 

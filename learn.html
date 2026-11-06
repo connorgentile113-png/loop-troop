@@ -390,25 +390,41 @@
           }
         })();
 
-        // Checks the relay itself rather than any one transport, because the game can reach the
-        // world over WebSocket or over plain HTTPS when a proxy refuses the upgrade.
+        // Open a real upstream connection; ping alone only proves the site is reachable.
         const probeServer = async () => {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 18000);
           try {
-            const res = await fetch("/game/http/ping", { headers: { Accept: "application/json" } });
-            if (res.status === 204 || res.ok) return { ok: true, message: "This site can reach the game." };
+            const res = await fetch("/game/http/open", {
+              method: "POST", credentials: "same-origin", cache: "no-store",
+              headers: { Accept: "application/json" }, signal: controller.signal,
+            });
             if (res.status === 403) return { ok: false, message: "The camp password expired — type it again." };
-            return { ok: false, message: `The relay answered ${res.status}.` };
-          } catch {
-            return { ok: false, message: "The relay could not be reached from this browser." };
+            if (res.status === 502) return { ok: false, message: "This site is reachable, but the camp world did not answer." };
+            if (!res.ok) return { ok: false, message: `The relay answered ${res.status}.` };
+            const { id } = await res.json();
+            fetch(`/game/http/${id}/close`, {
+              method: "POST", credentials: "same-origin", keepalive: true,
+            }).catch(() => {});
+            return { ok: true, message: "This browser reached the camp world through the HTTPS relay." };
+          } catch (error) {
+            return { ok: false, message: error.name === "AbortError"
+              ? "The connection test timed out. The network or camp world may be unavailable."
+              : "The relay could not be reached from this browser." };
+          } finally {
+            clearTimeout(timeout);
           }
         };
 
         testButton.addEventListener("click", async () => {
+          testButton.disabled = true;
           testResult.textContent = `Testing ${address}…`;
-          const { ok, message } = await probeServer();
-          testResult.textContent = ok
-            ? `${message} If the game still says it timed out, the camp world is down — try again later.`
-            : `${message} Tell your counselor if this keeps failing.`;
+          try {
+            const { message } = await probeServer();
+            testResult.textContent = message;
+          } finally {
+            testButton.disabled = false;
+          }
         });
 
         const showNetworkWarning = (shown) => {

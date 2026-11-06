@@ -28,19 +28,21 @@ const ZIP_URL = "https://cdn.eaglercraft.net/objects/dl/1.8.8/eaglercraft1-8-62d
 const TMP_ZIP = join(process.env.TMPDIR || "/tmp", "eaglercraft1-8.zip");
 // The game connection goes to our own host; /game on that host relays it to the Minecraft server.
 const SERVER = "wss://riverdaleacademy.devs.surf/game";
+const SERVER_EXPR = '(location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/game"';
 
 /** Injected into <head>, before the client script, so the client boots with our world. */
 const OPTS = `// %%%%%%%%% launch options %%%%%%%%%%%%%
 // Patched by Loop Troop: Education World, served from this site.
 window.eaglercraftXOpts = (function () {
+	var server = ${SERVER_EXPR};
 	var opts = {
 		container: "game_frame",
 		worldsDB: "worlds",
 		// No third-party relays: the only connection this page makes is to our own server,
 		// which forwards game traffic to the camp world.
 		relays: [],
-		servers: [{ addr: "${SERVER}", name: "Education World", primary: true }],
-		joinServer: "${SERVER}",
+		servers: [{ addr: server, name: "Education World", primary: true }],
+		joinServer: server,
 		// No update service, no redirects, no analytics leaving this origin.
 		analytics: false,
 		allowUpdateSvc: false,
@@ -81,6 +83,8 @@ function patch(html) {
   const out = html.toString("utf8");
   let next = out;
 
+  // Rebuilding a previously patched client must replace the shim, not leave an old copy first.
+  next = next.replace(/\/\* Injected into mc\/eaglercraft\.html[\s\S]*?window\.WebSocket = Shim;\s*\}\)\(\);\s*/g, "");
   const optsBlock = /\/\/ %+ launch options %+[\s\S]*?\/\/ %{10,}/;
   if (!optsBlock.test(next)) throw new Error("could not find the launch options block");
   next = next.replace(optsBlock, `${OPTS}\n${TRANSPORT}`);
@@ -110,7 +114,7 @@ function check(html) {
   // The bundle reads/props window.eaglercraftXOpts too; only our own object assignment matters.
   const assignments = html.match(/window\.eaglercraftXOpts\s*=\s*\(function/g) || [];
   if (assignments.length !== 1) problems.push(`expected 1 launch-options assignment, found ${assignments.length}`);
-  if (!html.includes(`joinServer: "${SERVER}"`)) problems.push("joinServer missing");
+  if (!html.includes("joinServer: server") || !html.includes(SERVER_EXPR)) problems.push("joinServer missing");
   if (!html.includes("analytics: false")) problems.push("analytics still enabled");
   if (!html.includes("relays: []")) problems.push("external relay list survived");
   if (!html.includes("__loopTroopTransport")) problems.push("transport fallback missing");

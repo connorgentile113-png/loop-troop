@@ -41,14 +41,15 @@ Compile it yourself here: https://gitlab.com/lax1dude/eaglercraftx-1.8/
 // %%%%%%%%% launch options %%%%%%%%%%%%%
 // Patched by Loop Troop: Education World, served from this site.
 window.eaglercraftXOpts = (function () {
+	var server = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/game";
 	var opts = {
 		container: "game_frame",
 		worldsDB: "worlds",
 		// No third-party relays: the only connection this page makes is to our own server,
 		// which forwards game traffic to the camp world.
 		relays: [],
-		servers: [{ addr: "wss://riverdaleacademy.devs.surf/game", name: "Education World", primary: true }],
-		joinServer: "wss://riverdaleacademy.devs.surf/game",
+		servers: [{ addr: server, name: "Education World", primary: true }],
+		joinServer: server,
 		// No update service, no redirects, no analytics leaving this origin.
 		analytics: false,
 		allowUpdateSvc: false,
@@ -139,15 +140,15 @@ window.eaglercraftXOpts = (function () {
 
   function pack(frames) {
     var total = 0, i;
-    for (i = 0; i < frames.length; i++) total += 4 + frames[i].length;
+    for (i = 0; i < frames.length; i++) total += 4 + frames[i].bytes.length;
     var body = new Uint8Array(total);
     var view = new DataView(body.buffer);
     var at = 0;
     for (i = 0; i < frames.length; i++) {
-      view.setUint32(at, frames[i].length);
+      view.setUint32(at, frames[i].bytes.length | (frames[i].text ? 0x80000000 : 0));
       at += 4;
-      body.set(frames[i], at);
-      at += frames[i].length;
+      body.set(frames[i].bytes, at);
+      at += frames[i].bytes.length;
     }
     return body;
   }
@@ -155,6 +156,7 @@ window.eaglercraftXOpts = (function () {
   function closeLocal(socket, code) {
     if (socket.readyState === 3) return;
     socket.readyState = 3;
+    socket._requests.forEach(function (controller) { controller.abort(); });
     clearTimeout(socket._openTimer);
     clearTimeout(socket._handshakeTimer);
     clearTimeout(socket._flushTimer);
@@ -174,7 +176,7 @@ window.eaglercraftXOpts = (function () {
     for (var i = 0; i < frames.length; i++) {
       var bytes = toBytes(frames[i]);
       try {
-        socket._native.send(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+        socket._native.send(typeof frames[i] === "string" ? frames[i] : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
       } catch (error) {
         socket._queue = frames.slice(i).concat(socket._queue);
         fail(socket, error);
@@ -185,25 +187,47 @@ window.eaglercraftXOpts = (function () {
     }
   }
 
+  // A filtered request can otherwise stay pending beyond the game handshake deadline.
+  function request(socket, url, options, budget) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, budget);
+    socket._requests.push(controller);
+    options.signal = controller.signal;
+    options.cache = "no-store";
+    return fetch(url, options).finally(function () {
+      clearTimeout(timer);
+      var at = socket._requests.indexOf(controller);
+      if (at >= 0) socket._requests.splice(at, 1);
+    });
+  }
+
   function flushHttp(socket) {
-    if (!socket._id || !socket._queue.length || socket.readyState !== 1) return;
+    if (!socket._id || !socket._queue.length || socket.readyState !== 1 || socket._sending) return;
     var frames = socket._queue;
     socket._queue = [];
-    var body = pack(frames.map(toBytes));
-    if (!socket._answered) socket._sent = socket._sent.concat(frames);
-    fetch(socket._base + "/" + socket._id + "/send", {
+    var body = pack(frames.map(function (frame) {
+      return { bytes: toBytes(frame), text: typeof frame === "string" };
+    }));
+    // Await each POST before sending the next batch: parallel requests can arrive out of order.
+    socket._sending = true;
+    request(socket, socket._base + "/" + socket._id + "/send", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/octet-stream" },
       body: body,
+    }, 12000).then(function (res) {
+      if (!res.ok) throw new Error("relay answered " + res.status);
+      socket._sending = false;
+      flushHttp(socket);
     }).catch(function (error) {
+      socket._sending = false;
       fail(socket, error);
     });
   }
 
   function poll(socket) {
     if (socket.readyState !== 1 || !socket._id) return;
-    fetch(socket._base + "/" + socket._id + "/recv", { credentials: "same-origin" })
+    request(socket, socket._base + "/" + socket._id + "/recv", { credentials: "same-origin" }, 25000)
       .then(function (res) {
         if (res.status === 204) {
           poll(socket);
@@ -221,12 +245,15 @@ window.eaglercraftXOpts = (function () {
         var view = new DataView(buffer);
         var at = 0;
         while (at + 4 <= buffer.byteLength) {
-          var length = view.getUint32(at);
+          var header = view.getUint32(at);
+          var text = !!(header & 0x80000000);
+          var length = header & 0x7fffffff;
           at += 4;
           if (at + length > buffer.byteLength) break;
           socket._answered = true;
           socket._sent = [];
-          emit(socket, "message", { data: buffer.slice(at, at + length) });
+          var data = buffer.slice(at, at + length);
+          emit(socket, "message", { data: text ? new TextDecoder().decode(data) : data });
           at += length;
         }
         poll(socket);
@@ -237,25 +264,29 @@ window.eaglercraftXOpts = (function () {
   }
 
   function startHttp(socket, announce) {
-    if (socket._httpStarted) return;
+    if (socket._httpStarted || socket.readyState === 3) return;
     socket._httpStarted = true;
-    fetch(socket._base + "/open", {
+    request(socket, socket._base + "/open", {
       method: "POST",
       credentials: "same-origin",
       headers: { Accept: "application/json" },
-    })
+    }, 18000)
       .then(function (res) {
         if (!res.ok) throw new Error("relay answered " + res.status);
         return res.json();
       })
       .then(function (info) {
+        if (socket.readyState === 3) {
+          fetch(socket._base + "/" + info.id + "/close", { method: "POST", credentials: "same-origin" }).catch(function () {});
+          return;
+        }
         socket._id = info.id;
         remember("http");
         socket.readyState = 1;
         if (announce) emit(socket, "open", {});
         var replay = socket._sent.slice();
         socket._sent = [];
-        for (var i = 0; i < replay.length; i++) socket._queue.push(replay[i]);
+        socket._queue = replay.concat(socket._queue);
         flushHttp(socket);
         poll(socket);
       })
@@ -266,6 +297,7 @@ window.eaglercraftXOpts = (function () {
 
   function switchToHttp(socket) {
     if (socket._native) {
+      socket._native.onopen = socket._native.onmessage = socket._native.onclose = socket._native.onerror = null;
       try {
         socket._native.close();
       } catch (error) {
@@ -284,22 +316,24 @@ window.eaglercraftXOpts = (function () {
       startHttp(socket, true);
       return;
     }
+    socket._native = native;
     native.binaryType = "arraybuffer";
     var settled = false;
 
     socket._openTimer = setTimeout(function () {
-      if (settled) return;
+      if (settled || socket.readyState === 3) return;
       settled = true;
       try {
         native.close();
       } catch (error) {
         /* already closed */
       }
+      socket._native = null;
       startHttp(socket, true);
     }, OPEN_BUDGET);
 
     native.onopen = function () {
-      if (settled) {
+      if (settled || socket.readyState === 3) {
         try {
           native.close();
         } catch (error) {
@@ -312,12 +346,15 @@ window.eaglercraftXOpts = (function () {
       socket._native = native;
       socket.readyState = 1;
       native.onmessage = function (event) {
+        if (socket._httpStarted || socket.readyState === 3) return;
+        remember("ws");
         socket._answered = true;
         socket._sent = [];
         emit(socket, "message", { data: event.data });
       };
       native.onclose = function (event) {
-        if (socket.readyState === 3) return;
+        if (socket.readyState === 3 || socket._httpStarted) return;
+        if (!socket._answered) { switchToHttp(socket); return; }
         closeLocal(socket, (event && event.code) || 1006);
       };
       emit(socket, "open", {});
@@ -327,13 +364,13 @@ window.eaglercraftXOpts = (function () {
       // client sits on "handshake timed out". If nothing arrives while we have already sent the
       // handshake, move the same frames onto HTTPS.
       socket._handshakeTimer = setTimeout(function () {
-        if (socket._answered || socket.readyState !== 1 || !socket._native) return;
+        if (socket._answered || socket.readyState !== 1 || !socket._native || !socket._sent.length) return;
         switchToHttp(socket);
       }, HANDSHAKE_BUDGET);
     };
 
     native.onerror = function () {
-      if (settled) return;
+      if (settled || socket.readyState === 3) return;
       settled = true;
       clearTimeout(socket._openTimer);
       try {
@@ -341,6 +378,7 @@ window.eaglercraftXOpts = (function () {
       } catch (error) {
         /* already closed */
       }
+      socket._native = null;
       startHttp(socket, true);
     };
   }
@@ -359,6 +397,8 @@ window.eaglercraftXOpts = (function () {
     this._sent = [];
     this._answered = false;
     this._httpStarted = false;
+    this._sending = false;
+    this._requests = [];
     this._openTimer = null;
     this._handshakeTimer = null;
     this._flushTimer = null;
@@ -461,7 +501,6 @@ window.eaglercraftXOpts = (function () {
 
   window.WebSocket = Shim;
 })();
-
 
 </script>
 <script type="text/javascript">

@@ -108,7 +108,10 @@ test("HTTP sends stay ordered and rejected sends surface an error", async () => 
 test("HTTPS-only client and relay preserve text and binary frames through a real upstream", { timeout: 10000 }, async t => {
   const world = new WebSocketServer({ port: 0 });
   await once(world, "listening");
-  world.on("connection", ws => ws.on("message", (data, isBinary) => ws.send(data, { binary: isBinary })));
+  world.on("connection", ws => ws.on("message", (data, isBinary) => {
+    ws.send(data, { binary: isBinary });
+    if (data.toString() === "bye") ws.close();
+  }));
   const relay = createGameRelay({ upstream: `ws://127.0.0.1:${world.address().port}`, isAllowed: req => req.headers.cookie === "unlocked" });
   const server = http.createServer(async (req, res) => {
     if (!(await relay.handleHttp(req, res, new URL(req.url, "http://localhost").pathname))) res.writeHead(404).end();
@@ -137,6 +140,19 @@ test("HTTPS-only client and relay preserve text and binary frames through a real
   await done;
   assert.equal(received[0], "Accept: MOTD");
   assert.deepEqual([...new Uint8Array(received[1])], [0, 255, 128]);
+  // Query servers often send their final reply and close before the next HTTP poll arrives.
+  const opts = { method: "POST", headers: { cookie: "unlocked" } };
+  const { id } = await fetch(base + "/game/http/open", opts).then(r => r.json());
+  const packet = Buffer.alloc(7);
+  packet.writeUInt32BE(0x80000003);
+  packet.write("bye", 4);
+  await fetch(`${base}/game/http/${id}/send`, { ...opts, body: packet });
+  await new Promise(resolve => setTimeout(resolve, 30));
+  const final = await fetch(`${base}/game/http/${id}/recv`, { headers: opts.headers });
+  assert.equal(final.status, 200, "final upstream frames survive upstream close");
+  assert.equal(Buffer.from(await final.arrayBuffer()).subarray(4).toString(), "bye");
+  assert.equal((await fetch(`${base}/game/http/${id}/recv`, { headers: opts.headers })).status, 410);
+
 });
 
 test("a blocked WebSocket upgrade opens HTTPS once and announces open", async () => {

@@ -24,8 +24,6 @@ const relay = createGameRelay({
   log: (message) => console.log(`relay: ${message}`),
 });
 
-const archRelay = createGameRelay({ upstream: "wss://arch.mc", path: "/game/arch", log: (message) => console.log(`arch relay: ${message}`) });
-
 const types = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -41,7 +39,6 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${port}`);
   const pathname = decodeURIComponent(url.pathname);
 
-  if (await archRelay.handleHttp(req, res, pathname)) return;
   if (await relay.handleHttp(req, res, pathname)) return;
 
   if (pathname.startsWith("/api/")) {
@@ -88,8 +85,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.on("upgrade", (req, socket, head) => {
-  const { pathname } = new URL(req.url, "http://localhost");
-  (pathname.replace(/\/$/, "") === "/game/arch" ? archRelay : relay).handleUpgrade(req, socket, head);
+  relay.handleUpgrade(req, socket, head);
 });
 
 server.listen(port, "0.0.0.0", () => {

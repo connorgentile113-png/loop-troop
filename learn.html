@@ -2,36 +2,172 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>Loop Troop — Eaglercraft</title>
+<meta name="robots" content="noindex,nofollow"><title>Loop Troop — choose a world</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090e20;color:white;font-family:system-ui,sans-serif}
-iframe{position:fixed;inset:0;width:100%;height:100%;border:0}
-#banner{position:fixed;inset:0;z-index:2;display:grid;place-content:center;text-align:center;background:#090e20}
-h1{font-size:clamp(42px,8vw,88px);margin:0;color:#b8ff69}p{color:#b7c4df}button{position:fixed;right:12px;top:12px;z-index:1;padding:8px 12px;border:1px solid #ffffff55;border-radius:8px;background:#090e20cc;color:white;cursor:pointer}
+:root{color-scheme:dark}
+html,body{margin:0;min-height:100%;background:#090e20;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#090e20}
+#pick{min-height:100vh;display:grid;place-content:center;gap:22px;padding:36px 20px;text-align:center;background:radial-gradient(90% 70% at 50% 0%,#1a1650 0%,#090e20 72%)}
+h1{font-size:clamp(38px,6vw,64px);margin:0;color:#b8ff69;letter-spacing:-.02em}
+.lede{margin:0;color:#b7c4df;font-size:clamp(15px,2vw,18px)}
+.worlds{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));max-width:760px;width:100%;margin:0 auto}
+.world{display:grid;gap:6px;justify-items:start;text-align:left;padding:20px;border-radius:16px;border:1px solid #ffffff26;background:#111735;color:#fff;cursor:pointer;font:inherit;transition:transform .12s ease,border-color .12s ease,background .12s ease}
+.world:hover,.world:focus-visible{border-color:#b8ff69;background:#16204a;transform:translateY(-2px);outline:none}
+.world .emoji{font-size:28px;line-height:1}
+.world b{font-size:16px;line-height:1.4;font-weight:700}
+.world small{color:#8fa2c9;font-size:13px}
+#poll{max-width:760px;width:100%;margin:0 auto;border-top:1px solid #ffffff1a;padding-top:18px;display:grid;gap:6px;text-align:left}
+#poll h2{font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:#8fa2c9;margin:0 0 6px;display:flex;justify-content:space-between;gap:12px;font-weight:700}
+#poll h2 small{font-weight:600;letter-spacing:0;text-transform:none;color:#5f6f95}
+.vote{display:grid;grid-template-columns:140px 1fr 44px;align-items:center;gap:12px;font-size:14px;color:#cfe0ff;background:none;border:0;border-radius:10px;padding:8px;font-family:inherit;cursor:pointer;text-align:left;transition:background .12s ease}
+.vote:hover,.vote:focus-visible{background:#ffffff10;outline:none}
+.bar{height:10px;border-radius:99px;background:#1b2244;overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#7de2ff,#b8ff69);transition:width .45s ease}
+.vote b{font-variant-numeric:tabular-nums;text-align:right;color:#cfe0ff}
+.note{margin:4px 0 0 8px;color:#8fa2c9;font-size:13px}
+#fullscreen{position:fixed;right:12px;top:12px;z-index:2;padding:8px 12px;border:1px solid #ffffff55;border-radius:8px;background:#090e20cc;color:#fff;cursor:pointer}
 [hidden]{display:none!important}
+@media (max-width:520px){.vote{grid-template-columns:104px 1fr 40px;font-size:13px}}
 </style>
 </head>
 <body>
-<div id="banner" role="status"><h1>🌀 Loop Troop</h1><p>Your next adventure starts here.</p></div>
-<iframe id="game" title="Eaglercraft — choose a server" allow="fullscreen; pointer-lock; autoplay; gamepad" allowfullscreen hidden></iframe>
+<main id="pick">
+  <h1>🌀 Loop Troop</h1>
+  <p class="lede">Pick a world — it opens the moment you choose.</p>
+
+  <div class="worlds">
+    <button class="world" type="button" data-world="survival">
+      <span class="emoji" aria-hidden="true">⛏️</span>
+      <b>Regular survival world</b>
+      <small>Loop Troop camp survival</small>
+    </button>
+    <button class="world" type="button" data-world="bedwars">
+      <span class="emoji" aria-hidden="true">🛏️</span>
+      <b>Public Bedwars world with <span id="world-players">…</span> active players</b>
+      <small>zentic.org — direct connection, no proxy</small>
+    </button>
+  </div>
+
+  <section id="poll" aria-live="polite">
+    <h2><span>Where is everyone going?</span><small id="resets">resets in 5:00</small></h2>
+    <button class="vote" type="button" data-vote="survival">
+      <span>Regular survival</span>
+      <span class="bar"><i id="bar-survival"></i></span>
+      <b id="votes-survival">0</b>
+    </button>
+    <button class="vote" type="button" data-vote="bedwars">
+      <span>Public Bedwars</span>
+      <span class="bar"><i id="bar-bedwars"></i></span>
+      <b id="votes-bedwars">0</b>
+    </button>
+    <p class="note"><span id="online-players">…</span> players online on zentic.org right now</p>
+  </section>
+</main>
+
+<iframe id="game" title="Eaglercraft — chosen world" allow="fullscreen; pointer-lock; autoplay; gamepad" allowfullscreen hidden></iframe>
 <button id="fullscreen" hidden>Fullscreen</button>
-<noscript>Enable JavaScript to start Eaglercraft.</noscript>
+<noscript>Enable JavaScript to choose a world.</noscript>
+
 <script>
-const frame = document.getElementById('game');
-const fullscreen = document.getElementById('fullscreen');
-setTimeout(() => {
-  let name = '';
-  try { name = localStorage.getItem('loop-troop-edu-name') || ''; } catch {}
-  frame.src = '/mc/eaglercraft?name=' + encodeURIComponent(name);
-  frame.hidden = false;
-  document.getElementById('banner').hidden = true;
-  fullscreen.hidden = false;
-  frame.focus();
-}, 3000);
-fullscreen.addEventListener('click', () => {
-  document.documentElement.requestFullscreen?.().catch(() => {});
-  frame.focus();
-});
+(function () {
+  var pick = document.getElementById('pick');
+  var frame = document.getElementById('game');
+  var fullscreen = document.getElementById('fullscreen');
+  var timer = null;
+  var booted = false;
+
+  function show(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  // The picker and the poll keep the numbers current; paint() is also used after a vote so the
+  // bars move the moment somebody clicks.
+  function paint(data) {
+    var online = data && data.players && typeof data.players.online === 'number' ? data.players.online : null;
+    var count = online === null ? '—' : String(online);
+    show('world-players', count);
+    show('online-players', count);
+
+    var worlds = (data && data.worlds) || [];
+    var total = 0;
+    var votes = {};
+    for (var i = 0; i < worlds.length; i++) {
+      votes[worlds[i].id] = worlds[i].votes || 0;
+      total += worlds[i].votes || 0;
+    }
+    for (var id in votes) {
+      show('votes-' + id, String(votes[id]));
+      var bar = document.getElementById('bar-' + id);
+      if (bar) bar.style.width = (total ? Math.round((votes[id] / total) * 100) : 0) + '%';
+    }
+
+    var seconds = data && typeof data.secondsLeft === 'number' ? data.secondsLeft : null;
+    if (seconds !== null) {
+      var rest = Math.max(0, seconds);
+      show('resets', 'resets in ' + Math.floor(rest / 60) + ':' + String(rest % 60).padStart(2, '0'));
+    }
+  }
+
+  function refresh() {
+    fetch('/api/worlds', { headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then(function (res) { if (!res.ok) throw new Error(res.status); return res.json(); })
+      .then(paint)
+      .catch(function () { show('resets', 'votes offline'); });
+  }
+
+  function vote(world) {
+    return fetch('/api/worlds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ world: world }),
+      keepalive: true,
+    })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) { if (data) paint(data); })
+      .catch(function () {});
+  }
+
+  function boot(world) {
+    if (booted) return;
+    booted = true;
+    clearInterval(timer);
+
+    // Choosing a world is also the vote, so the poll reflects what people actually play.
+    vote(world);
+
+    var name = '';
+    try { name = localStorage.getItem('loop-troop-edu-name') || ''; } catch (error) {}
+
+    // The picker and the poll belong to the launch screen only: once the world opens, this is
+    // just the game, full screen, exactly like before.
+    pick.hidden = true;
+    frame.src = '/mc/eaglercraft?name=' + encodeURIComponent(name) + '&world=' + encodeURIComponent(world);
+    frame.hidden = false;
+    fullscreen.hidden = false;
+    frame.focus();
+  }
+
+  document.addEventListener('click', function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var worldButton = target.closest('[data-world]');
+    if (worldButton) {
+      boot(worldButton.getAttribute('data-world'));
+      return;
+    }
+    var voteButton = target.closest('[data-vote]');
+    if (voteButton) vote(voteButton.getAttribute('data-vote'));
+  });
+
+  fullscreen.addEventListener('click', function () {
+    document.documentElement.requestFullscreen?.().catch(function () {});
+    frame.focus();
+  });
+
+  refresh();
+  timer = setInterval(refresh, 5000);
+})();
 </script>
 </body>
 </html>

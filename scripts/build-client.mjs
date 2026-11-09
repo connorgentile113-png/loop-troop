@@ -4,7 +4,8 @@
  * The official distribution is a single self-contained HTML file (about 33 MB) so the game
  * needs no CDN, no font host, no update service. This script takes that file and:
  *
- *   1. replaces the launch options so the client opens Education World with the camper's name,
+ *   1. replaces the launch options so the client opens the world picked on /learn, with the
+ *      camper's name, and joins it straight away,
  *   2. drops the Eaglercraft relay (an external WebSocket we do not use),
  *   3. turns analytics off and points its endpoint at our own origin,
  *   4. retitles the page,
@@ -29,19 +30,31 @@ const TMP_ZIP = join(process.env.TMPDIR || "/tmp", "eaglercraft1-8.zip");
 // The game connection goes to our own host; /game on that host relays it to the Minecraft server.
 const SERVER = "wss://riverdaleacademy.devs.surf/game";
 const SERVER_EXPR = '(location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/game"';
+// The public Bedwars world. Joined directly: no relay of ours sits in front of it.
+const ZENTIC = "wss://zentic.org";
 
-/** Injected into <head>, before the client script, so the client boots with our world. */
+/** Injected into <head>, before the client script, so the client boots with the world /learn picked. */
 const OPTS = `// %%%%%%%%% launch options %%%%%%%%%%%%%
-// Patched by Loop Troop: Education World, served from this site.
+// Patched by Loop Troop: the world chosen on /learn, served from this site.
 window.eaglercraftXOpts = (function () {
+	var params;
+	try { params = new URLSearchParams(location.search); } catch (e) { params = { get: function () { return null; } }; }
+	// /learn sends ?world=survival or ?world=bedwars; anything else is the camp world.
+	var world = params.get("world") === "bedwars" ? "bedwars" : "survival";
 	var server = ${SERVER_EXPR};
+	var zentic = "${ZENTIC}";
 	var opts = {
 		container: "game_frame",
 		worldsDB: "worlds",
-		// No third-party relays: the only connection this page makes is to our own server,
-		// which forwards game traffic to the camp world.
+		// No third-party relays. Survival goes to our own /game relay, which forwards it to the
+		// camp world; the Zentic world is joined directly, with nothing of ours in the middle.
 		relays: [],
-		servers: [{ addr: server, name: "Loop Troop" }, { addr: server + "/arch", name: "Arch MC" }],
+		servers: [
+			{ addr: server, name: "Loop Troop Survival" },
+			{ addr: zentic, name: "Zentic Bedwars" }
+		],
+		// The choice was already made on /learn, so skip the server list and join it now.
+		joinServer: world === "bedwars" ? zentic : server,
 		// No update service, no redirects, no analytics leaving this origin.
 		analytics: false,
 		allowUpdateSvc: false,
@@ -50,7 +63,7 @@ window.eaglercraftXOpts = (function () {
 	};
 	var name = "";
 	try {
-		name = (new URLSearchParams(location.search).get("name") || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 16);
+		name = (params.get("name") || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 16);
 	} catch (e) {}
 	if (name.length >= 3) opts.username = name;
 	return opts;
@@ -115,7 +128,9 @@ function check(html) {
   // The bundle reads/props window.eaglercraftXOpts too; only our own object assignment matters.
   const assignments = html.match(/window\.eaglercraftXOpts\s*=\s*\(function/g) || [];
   if (assignments.length !== 1) problems.push(`expected 1 launch-options assignment, found ${assignments.length}`);
-  if (html.includes("joinServer: server") || !html.includes('name: "Arch MC"') || !html.includes(SERVER_EXPR)) problems.push("server selection missing");
+  if (!html.includes(`addr: zentic, name: "Zentic Bedwars"`) || !html.includes(`"${ZENTIC}"`)) problems.push("Zentic world missing");
+  if (!html.includes('joinServer: world === "bedwars"')) problems.push("the /learn world choice is not wired up");
+  if (html.includes("Arch MC") || html.includes("/arch")) problems.push("Arch MC is still offered");
   if (!html.includes("analytics: false")) problems.push("analytics still enabled");
   if (!html.includes("relays: []")) problems.push("external relay list survived");
   if (!html.includes("__loopTroopTransport")) problems.push("transport fallback missing");

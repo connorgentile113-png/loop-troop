@@ -39,16 +39,26 @@ Compile it yourself here: https://gitlab.com/lax1dude/eaglercraftx-1.8/
 "use strict";
 
 // %%%%%%%%% launch options %%%%%%%%%%%%%
-// Patched by Loop Troop: Education World, served from this site.
+// Patched by Loop Troop: the world chosen on /learn, served from this site.
 window.eaglercraftXOpts = (function () {
+	var params;
+	try { params = new URLSearchParams(location.search); } catch (e) { params = { get: function () { return null; } }; }
+	// /learn sends ?world=survival or ?world=bedwars; anything else is the camp world.
+	var world = params.get("world") === "bedwars" ? "bedwars" : "survival";
 	var server = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/game";
+	var zentic = "wss://zentic.org";
 	var opts = {
 		container: "game_frame",
 		worldsDB: "worlds",
-		// No third-party relays: the only connection this page makes is to our own server,
-		// which forwards game traffic to the camp world.
+		// No third-party relays. Survival goes to our own /game relay, which forwards it to the
+		// camp world; the Zentic world is joined directly, with nothing of ours in the middle.
 		relays: [],
-		servers: [{ addr: server, name: "Loop Troop" }, { addr: server + "/arch", name: "Arch MC" }],
+		servers: [
+			{ addr: server, name: "Loop Troop Survival" },
+			{ addr: zentic, name: "Zentic Bedwars" }
+		],
+		// The choice was already made on /learn, so skip the server list and join it now.
+		joinServer: world === "bedwars" ? zentic : server,
 		// No update service, no redirects, no analytics leaving this origin.
 		analytics: false,
 		allowUpdateSvc: false,
@@ -57,7 +67,7 @@ window.eaglercraftXOpts = (function () {
 	};
 	var name = "";
 	try {
-		name = (new URLSearchParams(location.search).get("name") || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 16);
+		name = (params.get("name") || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 16);
 	} catch (e) {}
 	if (name.length >= 3) opts.username = name;
 	return opts;
@@ -101,8 +111,10 @@ window.eaglercraftXOpts = (function () {
     }
   }
 
+  // Only our own /game relay is wrapped. The Zentic world is joined by its own address, with no
+  // relay of ours in the path, so it keeps the browser's real WebSocket.
   function isGame(url) {
-    try { return /^\/game(?:\/arch)?\/?$/.test(new URL(String(url), window.location.href).pathname); } catch (e) { return false; }
+    try { return /^\/game\/?$/.test(new URL(String(url), window.location.href).pathname); } catch (e) { return false; }
   }
 
   function emit(socket, type, extra) {

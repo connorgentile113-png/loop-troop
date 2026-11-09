@@ -59,32 +59,46 @@ src/fx.js           confetti + Web Audio chirps
 lib/quests.js       quest content and the checks (server only)
 lib/sandbox.js      vm runner
 lib/gate.js         camp password + unlock cookie
+lib/world-poll.js   /learn world poll, five-minute buckets
+lib/zentic.js       live zentic.org player count (status ping)
 api/quests.js       GET catalog
 api/run.js          POST run code (+ gentle rate limit)
 api/unlock.js       POST camp password
+api/worlds.js       GET /learn poll + players, POST a vote
 dev/server.js       the production server: static files, API, password gate, /game relay
 tests/              node:test suite
 ```
 
 ## Eaglercraft (`/learn`)
 
-The page shows a Loop Troop banner for three seconds, then automatically opens the game
-covering the viewport. No password is required. The Fullscreen button requests browser fullscreen
-(which requires a user gesture). The client keeps the user's saved servers and supplies Loop Troop
-and Arch MC as available servers without automatically joining either.
+The page opens with a world picker instead of a banner:
 
-The Node server provides two fixed destinations using the same relay implementation:
+- **Regular survival world** — the Loop Troop camp world, reached through our own `/game` relay.
+- **Public Bedwars world with N active players** — `wss://zentic.org`, joined directly. No proxy or
+  relay of ours is in that connection.
+
+Under the buttons is a live poll of the same two worlds. A click on a world votes for it, and so do
+the poll rows, so the bars move as people choose. Votes live in five-minute buckets and start from
+scratch when the bucket rolls over. The player count next to the Bedwars world (and under the poll)
+is a status ping to `mc.zentic.cc` from `api/worlds.js`, cached for 30 seconds. Picking a world
+auto-joins it and removes the picker and the poll — from then on it is just the game, covering the
+viewport, with only the Fullscreen button on top. No password is required.
+
+The client reads `?world=survival|bedwars` and sets `joinServer` to the matching address. It keeps
+the user's saved servers and offers both worlds in its own list as well.
+
+The Node server provides one fixed destination:
 
 - `/game` → `wss://looptroop.eagler.host` (or `GAME_UPSTREAM`).
-- `/game/arch` → `wss://arch.mc`.
 
-Both support WebSocket and the identical HTTPS frame fallback under their respective `/http/*`
-paths. The client never connects directly to either upstream. Vercel rewrites `/game/*` to the
-Render service, which owns the long-lived relay connections. Neither route requires an unlock cookie.
+It supports WebSocket and the identical HTTPS frame fallback under `/game/http/*`. The survival
+world never connects directly to the upstream; the Zentic world is the only direct connection.
+Vercel rewrites `/game/*` to the Render service, which owns the long-lived relay connections.
+Neither route requires an unlock cookie.
 
 Build the shipped client with `node scripts/build-client.mjs mc/eaglercraft.html` after changing
-launch options or `lib/client-transport.js`. The vendor countdown is skipped because `/learn`
-provides the banner. Analytics, external relays and updates remain disabled.
+launch options or `lib/client-transport.js`. The vendor countdown is skipped because `/learn` has
+already asked which world to open. Analytics, external relays and updates remain disabled.
 
 ## Notes for teachers
 

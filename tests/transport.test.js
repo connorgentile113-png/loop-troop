@@ -9,7 +9,7 @@ import { createGameRelay } from "../lib/game-relay.js";
 
 const source = await readFile(new URL("../lib/client-transport.js", import.meta.url), "utf8");
 
-function client(base, mode = "http", fetchImpl = fetch) {
+function client(base, mode = "http", fetchImpl = fetch, path = "/game") {
   const natives = [];
   const timers = [];
   class Native {
@@ -26,7 +26,7 @@ function client(base, mode = "http", fetchImpl = fetch) {
     setTimeout(fn, ms) { if (ms === 2500) { timers.push(fn); return 1; } return setTimeout(fn, ms); },
     clearTimeout,
   });
-  return { socket: new window.WebSocket(base.replace(/^http/, "ws") + "/game"), natives, timers };
+  return { socket: new window.WebSocket(base.replace(/^http/, "ws") + path), natives, timers };
 }
 
 const pending = options => new Promise((resolve, reject) => {
@@ -232,4 +232,53 @@ test("game-style handleEvent objects can send the handshake and receive its resp
   socket.removeEventListener("close", removed);
   socket.close();
   assert.equal(closes, 0);
+});
+
+test("Arch relay preserves text, binary and final frames without a password", { timeout: 10000 }, async t => {
+  const world = new WebSocketServer({ port: 0 });
+  await once(world, "listening");
+  world.on("connection", ws => ws.on("message", (data, isBinary) => {
+    ws.send(data, { binary: isBinary });
+    if (data.toString() === "bye") ws.close();
+  }));
+  const relay = createGameRelay({ upstream: `ws://127.0.0.1:${world.address().port}`, path: "/game/arch" });
+  const server = http.createServer(async (req, res) => {
+    if (!(await relay.handleHttp(req, res, new URL(req.url, "http://localhost").pathname))) res.writeHead(404).end();
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(async () => {
+    for (const ws of world.clients) ws.terminate();
+    server.closeAllConnections();
+    await Promise.all([new Promise(r => world.close(r)), new Promise(r => server.close(r))]);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const { socket } = client(base, "http", (url, opts = {}) => fetch(url, {
+    ...opts, headers: { ...opts.headers, cookie: "unlocked" },
+  }), "/game/arch");
+  t.after(() => socket.close());
+  await event(socket, "open");
+  const received = [];
+  const done = new Promise(resolve => socket.addEventListener("message", e => {
+    received.push(e.data);
+    if (received.length === 2) resolve();
+  }));
+  socket.send("Accept: MOTD");
+  socket.send(new Uint8Array([0, 255, 128]));
+  await done;
+  assert.equal(received[0], "Accept: MOTD");
+  assert.deepEqual([...new Uint8Array(received[1])], [0, 255, 128]);
+  // Query servers often send their final reply and close before the next HTTP poll arrives.
+  const opts = { method: "POST", headers: { cookie: "unlocked" } };
+  const { id } = await fetch(base + "/game/arch/http/open", opts).then(r => r.json());
+  const packet = Buffer.alloc(7);
+  packet.writeUInt32BE(0x80000003);
+  packet.write("bye", 4);
+  await fetch(`${base}/game/arch/http/${id}/send`, { ...opts, body: packet });
+  await new Promise(resolve => setTimeout(resolve, 30));
+  const final = await fetch(`${base}/game/arch/http/${id}/recv`, { headers: opts.headers });
+  assert.equal(final.status, 200, "final upstream frames survive upstream close");
+  assert.equal(Buffer.from(await final.arrayBuffer()).subarray(4).toString(), "bye");
+  assert.equal((await fetch(`${base}/game/arch/http/${id}/recv`, { headers: opts.headers })).status, 410);
+
 });

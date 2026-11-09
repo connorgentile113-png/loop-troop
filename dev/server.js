@@ -8,7 +8,6 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { hasUnlock } from "../lib/gate.js";
 import { createGameRelay } from "../lib/game-relay.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -22,9 +21,10 @@ const GAME_UPSTREAM = process.env.GAME_UPSTREAM || "wss://looptroop.eagler.host"
 
 const relay = createGameRelay({
   upstream: GAME_UPSTREAM,
-  isAllowed: hasUnlock,
   log: (message) => console.log(`relay: ${message}`),
 });
+
+const archRelay = createGameRelay({ upstream: "wss://arch.mc", path: "/game/arch", log: (message) => console.log(`arch relay: ${message}`) });
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -41,6 +41,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${port}`);
   const pathname = decodeURIComponent(url.pathname);
 
+  if (await archRelay.handleHttp(req, res, pathname)) return;
   if (await relay.handleHttp(req, res, pathname)) return;
 
   if (pathname.startsWith("/api/")) {
@@ -57,20 +58,6 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ error: error.message }));
     }
     return;
-  }
-
-  // The 33 MB client is only served to a browser that typed the camp password.
-  if (pathname === "/mc" || pathname.startsWith("/mc/")) {
-    if (!hasUnlock(req)) {
-      res.writeHead(403, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-      res.end(
-        "<!doctype html><meta charset=\"utf-8\"><title>Locked</title>" +
-          "<body style=\"font:16px/1.6 system-ui;padding:32px\">" +
-          "<h1>Education World is locked</h1>" +
-          "<p>Type the camp password on <a href=\"/learn\">/learn</a> to open the game.</p>",
-      );
-      return;
-    }
   }
 
   const relative = normalize(pathname === "/" ? "/index.html" : pathname).replace(/^(\.\.[/\\])+/, "");
@@ -100,7 +87,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.on("upgrade", relay.handleUpgrade);
+server.on("upgrade", (req, socket, head) => {
+  const { pathname } = new URL(req.url, "http://localhost");
+  (pathname.replace(/\/$/, "") === "/game/arch" ? archRelay : relay).handleUpgrade(req, socket, head);
+});
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`Loop Troop is running at http://localhost:${port}`);

@@ -48,8 +48,7 @@ window.eaglercraftXOpts = (function () {
 		// No third-party relays: the only connection this page makes is to our own server,
 		// which forwards game traffic to the camp world.
 		relays: [],
-		servers: [{ addr: server, name: "Education World", primary: true }],
-		joinServer: server,
+		servers: [{ addr: server, name: "Loop Troop" }, { addr: server + "/arch", name: "Arch MC" }],
 		// No update service, no redirects, no analytics leaving this origin.
 		analytics: false,
 		allowUpdateSvc: false,
@@ -103,7 +102,7 @@ window.eaglercraftXOpts = (function () {
   }
 
   function isGame(url) {
-    return String(url).split("?")[0].split("#")[0].replace(/\/$/, "").slice(-5) === "/game";
+    try { return /^\/game(?:\/arch)?\/?$/.test(new URL(String(url), window.location.href).pathname); } catch (e) { return false; }
   }
 
   function emit(socket, type, extra) {
@@ -416,7 +415,7 @@ window.eaglercraftXOpts = (function () {
         target.host === here.host
           ? here.origin
           : (target.protocol === "wss:" ? "https:" : "http:") + "//" + target.host;
-      this._base = origin + "/game/http";
+      this._base = origin + target.pathname.replace(/\/$/, "") + "/http";
     } catch (error) {
       this._base = "";
     }
@@ -66145,7 +66144,7 @@ c.fyR});Object.defineProperty(c,"name",{get:c.ffx,set:c.fx9});Object.definePrope
 	var launchCounter = 1;
 	var launchCountdownNumberElement = null;
 	var launchCountdownProgressElement = null;
-	var launchSkipCountdown = false;
+	var launchSkipCountdown = true;
 
 	var launchTick = function() {
 		launchCountdownNumberElement.innerText = "" + Math.floor(6.0 - launchCounter * 0.06);

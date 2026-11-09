@@ -41,8 +41,7 @@ window.eaglercraftXOpts = (function () {
 		// No third-party relays: the only connection this page makes is to our own server,
 		// which forwards game traffic to the camp world.
 		relays: [],
-		servers: [{ addr: server, name: "Education World", primary: true }],
-		joinServer: server,
+		servers: [{ addr: server, name: "Loop Troop" }, { addr: server + "/arch", name: "Arch MC" }],
 		// No update service, no redirects, no analytics leaving this origin.
 		analytics: false,
 		allowUpdateSvc: false,
@@ -106,6 +105,8 @@ function patch(html) {
   next = next.replaceAll("wss://relay.eaglercraft.net/", `${SERVER}`);
   next = next.replaceAll("wss://relay.deev.is/", `${SERVER}`);
 
+  // Launch immediately: /learn supplies the three-second banner.
+  next = next.replace("var launchSkipCountdown = false;", "var launchSkipCountdown = true;");
   return next;
 }
 
@@ -114,7 +115,7 @@ function check(html) {
   // The bundle reads/props window.eaglercraftXOpts too; only our own object assignment matters.
   const assignments = html.match(/window\.eaglercraftXOpts\s*=\s*\(function/g) || [];
   if (assignments.length !== 1) problems.push(`expected 1 launch-options assignment, found ${assignments.length}`);
-  if (!html.includes("joinServer: server") || !html.includes(SERVER_EXPR)) problems.push("joinServer missing");
+  if (html.includes("joinServer: server") || !html.includes('name: "Arch MC"') || !html.includes(SERVER_EXPR)) problems.push("server selection missing");
   if (!html.includes("analytics: false")) problems.push("analytics still enabled");
   if (!html.includes("relays: []")) problems.push("external relay list survived");
   if (!html.includes("__loopTroopTransport")) problems.push("transport fallback missing");

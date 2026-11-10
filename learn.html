@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>Loop Troop — choose a world</title>
+<meta name="robots" content="noindex,nofollow"><title>Loop Troop — Minecraft field guide</title>
 <style>
 :root{color-scheme:dark}
 html,body{margin:0;min-height:100%;background:#090e20;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -29,9 +29,24 @@ h1{font-size:clamp(38px,6vw,64px);margin:0;color:#b8ff69;letter-spacing:-.02em}
 [hidden]{display:none!important}
 @media (max-width:520px){.vote{grid-template-columns:104px 1fr 40px;font-size:13px}}
 </style>
+<link rel="stylesheet" href="/src/learn-course.css">
 </head>
 <body>
-<main id="pick">
+<main id="course" hidden aria-labelledby="lesson-title">
+  <header class="course-header"><a href="/">🌀 Loop Troop</a><span>MINECRAFT FIELD GUIDE</span></header>
+  <div class="course-layout">
+    <aside><p class="course-kicker">YOUR FIRST ADVENTURE</p><h1>Small blocks.<br>Big possibilities.</h1><p>Learn the rules of the world before you step into it.</p><ol id="lesson-list"></ol></aside>
+    <section class="lesson-card">
+      <div class="course-progress"><span id="lesson-count"></span><progress id="lesson-progress" max="6" value="1" aria-label="Course progress"></progress></div>
+      <div id="lesson-icon" aria-hidden="true"></div><h2 id="lesson-title" tabindex="-1"></h2><div id="lesson-body"></div>
+      <fieldset><legend id="lesson-question"></legend><div id="lesson-answers"></div></fieldset>
+      <p id="lesson-feedback" role="status"></p>
+      <nav class="lesson-actions" aria-label="Lesson navigation"><button id="lesson-back" type="button">← Back</button><button id="lesson-next" type="button" disabled>Next lesson →</button></nav>
+    </section>
+  </div>
+  <footer class="course-footer"><span>Progress saves on this browser.</span><span><kbd>Ctrl Q</kbd> Restart · <kbd>Ctrl M</kbd> Skip to worlds</span><button id="course-skip" type="button">Skip course →</button></footer>
+</main>
+<main id="pick" hidden>
   <h1>🌀 Loop Troop</h1>
   <p class="lede">Pick a world — it opens the moment you choose.</p>
 
@@ -165,9 +180,19 @@ h1{font-size:clamp(38px,6vw,64px);margin:0;color:#b8ff69;letter-spacing:-.02em}
     frame.focus();
   });
 
+  document.addEventListener('learn:reset-game', function () {
+    booted = false;
+    frame.hidden = true;
+    frame.removeAttribute('src');
+    fullscreen.hidden = true;
+    clearInterval(timer);
+    refresh();
+    timer = setInterval(refresh, 5000);
+  });
   refresh();
   timer = setInterval(refresh, 5000);
 })();
 </script>
+<script type="module" src="/src/learn-course.js"></script>
 </body>
 </html>
